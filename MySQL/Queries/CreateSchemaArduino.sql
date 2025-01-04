@@ -14,7 +14,7 @@ CREATE TABLE tb_sensors (
 CREATE TABLE tb_config (
 	ID				INT PRIMARY KEY AUTO_INCREMENT,
     Initial_Time	INT,
-    End_Time		INT,
+    End_Time		INT DEFAULT NULL,
     ID_Plant		INT,
     Connection_Time	DATETIME
 );	
