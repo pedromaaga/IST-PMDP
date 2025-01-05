@@ -5,7 +5,8 @@ create database db_admin;
 use db_admin;
 CREATE TABLE tb_plants (
     ID_Plant		INT PRIMARY KEY AUTO_INCREMENT,
-    Name_plant		VARCHAR(100)
+    Name_plant		VARCHAR(100),
+    Notes 			TEXT
 );
 
 CREATE TABLE tb_user_plant (
@@ -26,8 +27,8 @@ CREATE TABLE tb_plant_growth (
     Air_Temperature_Max DECIMAL(5,2),
     Soil_Humidity_Min 	DECIMAL(5,2),
     Soil_Humidity_Max 	DECIMAL(5,2),
-    Light_Intensity_Min DECIMAL(5,2),
-    Light_Intensity_Max DECIMAL(5,2),
+    Light_Intensity_Min INT,
+    Light_Intensity_Max INT,
     Light_Exposure_Min 	DECIMAL(5,2),
     Light_Exposure_Max 	DECIMAL(5,2),
     Fertilization 		VARCHAR(100),
