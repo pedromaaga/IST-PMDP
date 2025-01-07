@@ -52,7 +52,7 @@ WiFiClient client;
 
 bool plant_added;
 bool new_plant;
-int plant_added_id                = -1;
+float plant_added_id                = -1;
 
 // Queries
 char INSERT_DATA[]                = "INSERT INTO db_arduino.tb_sensors (Air_Temperature, Soil_Humidity, Light_Intensity, Water_Level) VALUES (%.2f,%.2f,%.2f,%.2f)";
@@ -76,7 +76,6 @@ void setup() {
 
 void loop() {
   CheckWiFiConnection();
-  GetBegginerTimer();
   // Verify there is a plant and the program can run
   plant_added                   = VerifyPlantAdded();
   if (plant_added){
@@ -84,6 +83,7 @@ void loop() {
     new_plant                   = VerifyNewPlant();
 
     if (new_plant){
+      Serial.println("Entrei");
       // Reset Variables
       current_timer             = 0;
       light_timer               = 0;
@@ -92,7 +92,6 @@ void loop() {
     }
   }
 
-  plant_added = true;
   if (plant_added){
     // Verify if it is a new week
     if (qnt_days % 7 == 0) {
@@ -271,75 +270,40 @@ void CheckWiFiConnection(){
 }
 
 bool VerifyPlantAdded() {
-  HTTPClient http;
-  int httpCode;
+  Serial.println("============= Verify Plant Added");
 
-  http.begin("http://localhost/verify_plant_added.php"); // Replace <server-ip>
-  
-  int httpResponseCode = http.GET();
-  if (httpResponseCode > 0) {
-    String response = http.getString();
-    return response.indexOf("\"plant_added\":true") >= 0;
-  }
-
-  http.end();
-  return false;
-}
-
-bool VerifyNewPlant() {
-  HTTPClient http;
-  http.begin("http://localhost/verify_new_plant.php");
-
-  int httpResponseCode = http.GET();
-  if (httpResponseCode > 0) {
-    String response = http.getString();
-    int newIndex = response.substring(response.indexOf(":") + 1, response.indexOf("}")).toInt();
-    if (newIndex != plant_added_id) {
-      plant_added_id = newIndex;
-      return true;
-    }
-  }
-
-  http.end();
-  return false;
-}
-
-float GetBegginerTimer() {
-  Serial.println("============= Receive the begginer time");
+  bool plant_added = false;
 
   HTTPClient http;
-  http.begin("http://192.168.1.93/get_begginer_timer.php");
+  http.begin("http://192.168.1.93/verify_plant_added.php");
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
-  int httpCode = http.POST("");
+  int httpCode = http.POST("Time");
 
   if (httpCode > 0) {
-    String payload = http.getString();
-
-    Serial.println("Response Payload: ");
-    Serial.println(payload);
+    payload = http.getString();
 
     // Parse JSON response
     JSONVar jsonObject = JSON.parse(payload);
-    Serial.println(jsonObject["Connection_Time"]);
 
     // Check if JSON parsing was successful and the value exists
     if (JSON.typeof(jsonObject) == "undefined") {
       Serial.println("Parsing input failed!");
     } else {
-      // If data is found, get the Connection_Time value
-      if (jsonObject.hasOwnProperty("Connection_Time")) {
-        float connectionTimeStr = jsonObject["Connection_Time"].tofloat();
+      // If data is found, get the ID value
+      if (jsonObject.hasOwnProperty("End_Time")) {
+        // Access the value as a float (double in JSONVar)
+        float End_Time = (double)jsonObject["End_Time"];
 
-        Serial.print("Raw Connection_Time string: ");
-        Serial.println(connectionTimeStr);
-
-        float connectionTimeFloat = connectionTimeStr.toFloat();                      // Parse to float
-        Serial.print("Parsed Connection_Time: ");
-        Serial.println(connectionTimeFloat);
-        return connectionTimeFloat; // Return the float value
+        // Check if the value is -1, indicating that there is a plant
+        if (End_Time == -1) {
+          Serial.println("Plant present.");
+          plant_added = true;
+        }else{
+          Serial.println("No plant present.");
+        }
       } else {
-        Serial.println("No Connection_Time available in response.");
+        Serial.println("No plant available in response.");
       }
     }
   } else {
@@ -348,9 +312,106 @@ float GetBegginerTimer() {
   }
 
   http.end();
-  return 0; // Return 0 if there was no valid HTTP response
+  Serial.println("====================================");
+  Serial.println("");
+  return plant_added; // Return 0 if there was no valid HTTP response
 }
 
+bool VerifyNewPlant() {
+  Serial.println("============= Verify New Plant");
+
+  bool new_plant = false;
+
+  HTTPClient http;
+  http.begin("http://192.168.1.93/verify_new_plant.php");
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+  int httpCode = http.POST("ID");
+
+  if (httpCode > 0) {
+    payload = http.getString();
+
+    // Parse JSON response
+    JSONVar jsonObject = JSON.parse(payload);
+
+    // Check if JSON parsing was successful and the value exists
+    if (JSON.typeof(jsonObject) == "undefined") {
+      Serial.println("Parsing input failed!");
+    } else {
+      // If data is found, get the ID value
+      if (jsonObject.hasOwnProperty("ID")) {
+        // Access the value as a float (double in JSONVar)
+        float ID = (double)jsonObject["ID"];
+
+        // Check if the value is -1, indicating no data available
+        if (ID != plant_added_id) {
+          Serial.println("New plant added.");
+          plant_added_id = ID;
+          new_plant = true;
+        }else{
+          Serial.println("No new plant.");
+        }
+      } else {
+        Serial.println("No ID plant available in response.");
+      }
+    }
+  } else {
+    Serial.print("HTTP request failed with code: ");
+    Serial.println(httpCode);
+  }
+
+  http.end();
+  Serial.println("====================================");
+  Serial.println("");
+  return new_plant; // Return 0 if there was no valid HTTP response
+}
+
+float GetBegginerTimer() {
+  Serial.println("============= Receive the begginer time");
+
+  float connection_time;
+
+  HTTPClient http;
+  http.begin("http://192.168.1.93/get_begginer_timer.php");
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+  int httpCode = http.POST("Time");
+
+  if (httpCode > 0) {
+    payload = http.getString();
+
+    // Parse JSON response
+    JSONVar jsonObject = JSON.parse(payload);
+
+    // Check if JSON parsing was successful and the value exists
+    if (JSON.typeof(jsonObject) == "undefined") {
+      Serial.println("Parsing input failed!");
+    } else {
+      // If data is found, get the Connection_Time value
+      if (jsonObject.hasOwnProperty("Connection_Time")) {
+        // Access the value as a float (double in JSONVar)
+        connection_time = (double)jsonObject["Connection_Time"];
+        Serial.print("Connection Time: ");
+        Serial.println(connection_time);
+
+        // Check if the value is -1, indicating no data available
+        if (connection_time == -1) {
+            Serial.println("No Connection Time available in response.");
+        }
+      } else {
+        Serial.println("No Connection Time available in response.");
+      }
+    }
+  } else {
+    Serial.print("HTTP request failed with code: ");
+    Serial.println(httpCode);
+  }
+
+  http.end();
+  Serial.println("====================================");
+  Serial.println("");
+  return connection_time; // Return 0 if there was no valid HTTP response
+}
 
 void GetThresholders(int week) {
 
@@ -380,9 +441,9 @@ void GetThresholders(int week) {
           threshold_light_timer = -1;
       } else {
           // Extract threshold values
-          threshold_humidity = String((const char*)jsonObject["Soil_Humidity_Min"]).toFloat();
-          threshold_light = String((const char*)jsonObject["Light_Intensity_Min"]).toFloat();
-          threshold_light_timer = String((const char*)jsonObject["Light_Exposure_Min"]).toFloat();
+          threshold_humidity = (double)jsonObject["Soil_Humidity_Min"];
+          threshold_light = (double)jsonObject["Light_Intensity_Min"];
+          threshold_light_timer = (double)jsonObject["Light_Exposure_Min"];
 
           Serial.print("Soil Humidity Min: ");
           Serial.println(threshold_humidity);
