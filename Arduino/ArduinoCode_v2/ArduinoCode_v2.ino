@@ -8,8 +8,8 @@ const int pin_sensor_humidity 		  = A0;
 const int pin_sensor_temperature	  = A1;
 const int pin_sensor_water    		  = A2;
 const int pin_sensor_light    		  = A3;
-const int pin_pump            		  = 9;
-const int pin_LED             		  = 8;
+const int pin_pump            		  = D9;
+const int pin_LED             		  = D8;
 
 // Sensor variables
 float value_humidity;
@@ -38,7 +38,8 @@ bool day_change;
 byte mac_addr[]                   = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
 IPAddress server_addr(192,168,1,254);       // IP of the MySQL *server* here
-char user[]                       = "root"; // MySQL user login username
+IPAddress ip(192,168,1,254);
+char user[]                       = "localhost"; // MySQL user login username
 char password[]                   = "2605"; // MySQL user login password
 
 EthernetClient client;
@@ -61,6 +62,8 @@ void setup() {
   
   Serial.begin(9600);
   while (!Serial);
+  Ethernet.begin(mac_addr, ip);
+  Serial.println(Ethernet.localIP());
 }
 
 
@@ -155,7 +158,7 @@ float GetHumidity() {
   int raw_humidity;
 
   raw_humidity                    = analogRead(pin_sensor_humidity);
-  float humidity_percent          = (raw_humidity / 798.0) * 100.0;
+  float humidity_percent          = raw_humidity;
 
   return humidity_percent;
 }
@@ -164,7 +167,7 @@ float GetLight() {
   int raw_light;
 
   raw_light                       = analogRead(pin_sensor_light);
-  float light_percent             = ((raw_light - 6.0) / (679.0 - 6.0)) * 100.0;
+  float light_percent             = raw_light;
 
   return light_percent;
 }
@@ -173,7 +176,7 @@ float GetWaterLevel() {
   int raw_water;
 
   raw_water                       = analogRead(pin_sensor_water);
-  float water_percent             = ((raw_water - 20.0) / (358.0 - 20.0)) * 100.0;
+  float water_percent             = raw_water;
 
   return water_percent;
 }
@@ -182,7 +185,7 @@ float GetTemperature() {
   int raw_temperature;
 
   raw_temperature                 = analogRead(pin_sensor_temperature);
-  float temperature               = ((raw_temperature - 20.0) / (358.0 - 20.0))*((125.0 - (-40.0))) + (-40.0);
+  float temperature               = raw_temperature;
 
   return temperature;
 }
@@ -249,7 +252,6 @@ float LightTimeCount(bool day_change, float light_timer, float current_timer, fl
 void VerifyConnectionDatabase(){
 
   while (!conn.connected()){
-    Ethernet.begin(mac_addr);
     Serial.println("Connecting...");
     if (conn.connect(server_addr, 3306, user, password)) {
       Serial.println("Connection success.");

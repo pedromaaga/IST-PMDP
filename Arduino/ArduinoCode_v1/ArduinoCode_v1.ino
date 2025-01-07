@@ -3,8 +3,8 @@ const int pin_sensor_humidity 		= A0;
 const int pin_sensor_temperature	= A1;
 const int pin_sensor_water    		= A2;
 const int pin_sensor_light    		= A3;
-const int pin_pump            		= 9;
-const int pin_LED             		= 8;
+const int pin_pump            		= D9;
+const int pin_LED             		= D8;
 
 // Sensor variables
 float value_humidity;
@@ -17,9 +17,9 @@ bool active_pump 					= 0;
 bool active_light 					= 0;
 
 // Thresholders;
-float threshold_humidity			= 50;
-float threshold_light 				= 50;
-float threshold_light_timer			= 8;	// [h]
+float threshold_humidity			= 25;
+float threshold_light 				= 3000;
+float threshold_light_timer			= 0;	// [h]
 
 // Time variables
 float begginer_timer;						// [h]
@@ -109,7 +109,7 @@ float GetHumidity() {
 float GetLight() {
   int raw_light;
   raw_light = analogRead(pin_sensor_light);
-  float light_percent = ((raw_light - 6.0) / (679.0 - 6.0)) * 100.0;
+  float light_percent = raw_light;
   return light_percent;
 }
 
@@ -121,10 +121,20 @@ float GetWaterLevel() {
 }
 
 float GetTemperature() {
-  int raw_temperature;
-  raw_temperature = analogRead(pin_sensor_temperature);
-  float temperature = ((raw_temperature - 20.0) / (358.0 - 20.0))*((125.0 - (-40.0))) + (-40.0);
-  return temperature;
+
+  int Vo;
+  float R1 = 10000; // value of R1 on board
+  float logR2, R2, T;
+  float c1 = 0.001129148, c2 = 0.000234125, c3 = 0.0000000876741;
+
+  Vo = analogRead(pin_sensor_temperature);
+  R2 = (1023.0 / (float)Vo - 1.0); //calculate resistance on thermistor
+  logR2 = log(R2);
+  T = (1.0 / (c1 + c2*logR2 + c3*logR2*logR2*logR2)); // temperature in Kelvin
+  T = T - 273.15; //convert Kelvin to Celcius
+  T = Vo;
+
+  return T;
 }
 
 
