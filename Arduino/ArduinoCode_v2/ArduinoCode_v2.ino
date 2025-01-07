@@ -44,11 +44,9 @@ char password[]                   = "2605"; // MySQL user login password
 EthernetClient client;
 MySQL_Connection conn((Client *)&client);
 
-bool connected;
 bool plant_added;
 bool new_plant;
 int plant_added_id                = -1;
-
 
 // Queries
 char INSERT_DATA[]                = "INSERT INTO db_arduino.tb_sensors (Air_Temperature, Soil_Humidity, Light_Intensity, Water_Level) VALUES (%.2f,%.2f,%.2f,%.2f)";
@@ -63,115 +61,89 @@ void setup() {
   
   Serial.begin(9600);
   while (!Serial);
-
-  // Connect to the database
-  connected                       = false;
-  while (!connected) {
-    Ethernet.begin(mac_addr);
-    Serial.println("Connecting...");
-    if (conn.connect(server_addr, 3306, user, password)) {
-      connected                   = true;
-      delay(1000);
-    }
-    else
-      connected                   = false;
-      Serial.println("Connection failed.");
-  }
 }
 
 
 void loop() {
-  if (conn.connected()){
-    // Verify there is a plant and the program can run
-    plant_added                   = VerifyPlantAdded(conn, VERIFY_PLANT_ADD);
-    if (plant_added){
-      // Verify if it is a new plant
-      new_plant                   = VerifyNewPlant(conn, VERIFY_NEW_PLANT_ADD, plant_added_id);
+  // Connection Database
+  VerifyConnectionDatabase();
+  
+  // Verify there is a plant and the program can run
+  plant_added                   = VerifyPlantAdded();
+  if (plant_added){
+    // Verify if it is a new plant
+    new_plant                   = VerifyNewPlant();
 
-      if (new_plant){
-        // Reset Variables
-        current_timer             = 0;
-        light_timer               = 0;
-        qnt_days                  = 0;
-      }
+    if (new_plant){
+      // Reset Variables
+      current_timer             = 0;
+      light_timer               = 0;
+      qnt_days                  = 0;
+      begginer_timer            = GetBegginerTimer();
+    }
+  }
+
+  if (plant_added){
+    // Verify if it is a new week
+    if (qnt_days % 7 == 0) {
+      int week                  = qnt_days % 7 + 1;
+      GetThresholders(week);
     }
 
-    if (plant_added){
-      // Verify if it is a new week
-      if (qnt_days % 7 == 0) {
-        int week                  = qnt_days % 7 + 1;
-        GetThresholders(week);
-      }
+    // Sensors values
+    value_humidity 	            = GetHumidity();
+    value_light		              = GetLight();
+    value_water		              = GetWaterLevel();
+    value_temperature	          = GetTemperature();
 
-      // Sensors values
-      value_humidity 	            = GetHumidity();
-      value_light		              = GetLight();
-      value_water		              = GetWaterLevel();
-      value_temperature	          = GetTemperature();
-
-      // Time variables
-      current_timer 	            = CurrentTimeCount(begginer_timer);
-      day_change 		              = VerifyDayChange(previous_timer, current_timer);
-      if (day_change){
-        qnt_days                  = qnt_days + 1;
-      }
-      
-      // Update light timer
-      light_timer                 = LightTimeCount(day_change, light_timer, current_timer, previous_timer, value_light, threshold_light);
-      
-      // Update previous timer
-      previous_timer              = current_timer;
-      
-      // Mensages
-      Serial.println("-- Current timer --");
-      Serial.println(current_timer);
-      Serial.println("-- New values --");
-      Serial.print("Humidity Value:\t\t");
-      Serial.println(value_humidity);
-      Serial.print("Light Value:\t\t");
-      Serial.println(value_light);
-      Serial.print("Water level Value:\t");
-      Serial.println(value_water);
-      Serial.print("Temperature Value:\t");
-      Serial.println(value_temperature);
-      
-      // Actuators
-      active_pump                 = ActPump(value_humidity, threshold_humidity);
-      if (active_pump)
-      {
-        digitalWrite(pin_pump, HIGH);
-      }else{
-        digitalWrite(pin_pump, LOW);
-      }
-      
-      active_light                = ActLight(value_light, threshold_light, light_timer, threshold_light_timer);
-      
-      if (active_light)
-      {
-        digitalWrite(pin_LED, HIGH);
-      }else{
-        digitalWrite(pin_LED, LOW);
-      }
-      
-      // Insert the sensors data in the database
-      InsertData(value_temperature, value_humidity, value_light, value_water, INSERT_DATA);
-
-      delay(6000);
+    // Time variables
+    current_timer 	            = CurrentTimeCount(begginer_timer);
+    day_change 		              = VerifyDayChange(previous_timer, current_timer);
+    if (day_change){
+      qnt_days                  = qnt_days + 1;
     }
-  }else {
-    conn.close();
-    connected = false;
-    while (!connected) {
-    Serial.println("Connecting...");
-      if (conn.connect(server_addr, 3306, user, password)) {
-        connected                 = true;
-        delay(1000);
-      }
-      else {
-        connected                 = false;
-        Serial.println("Connection failed.");
-      }
+    
+    // Update light timer
+    light_timer                 = LightTimeCount(day_change, light_timer, current_timer, previous_timer, value_light, threshold_light);
+    
+    // Update previous timer
+    previous_timer              = current_timer;
+    
+    // Mensages
+    Serial.println("-- Current timer --");
+    Serial.println(current_timer);
+    Serial.println("-- New values --");
+    Serial.print("Humidity Value:\t\t");
+    Serial.println(value_humidity);
+    Serial.print("Light Value:\t\t");
+    Serial.println(value_light);
+    Serial.print("Water level Value:\t");
+    Serial.println(value_water);
+    Serial.print("Temperature Value:\t");
+    Serial.println(value_temperature);
+    
+    // Actuators
+    active_pump                 = ActPump(value_humidity, threshold_humidity);
+    if (active_pump)
+    {
+      digitalWrite(pin_pump, HIGH);
+    }else{
+      digitalWrite(pin_pump, LOW);
     }
+    
+    active_light                = ActLight(value_light, threshold_light, light_timer, threshold_light_timer);
+    
+    if (active_light)
+    {
+      digitalWrite(pin_LED, HIGH);
+    }else{
+      digitalWrite(pin_LED, LOW);
+    }
+    
+    // Insert the sensors data in the database
+    InsertData(value_temperature, value_humidity, value_light, value_water);
+
+    delay(6000);
   }
 }
 
@@ -274,7 +246,22 @@ float LightTimeCount(bool day_change, float light_timer, float current_timer, fl
 
 
 // Database functions
-bool VerifyPlantAdded(MySQL_Connection conn, char VERIFY_PLANT_ADD){
+void VerifyConnectionDatabase(){
+
+  while (!conn.connected()){
+    Ethernet.begin(mac_addr);
+    Serial.println("Connecting...");
+    if (conn.connect(server_addr, 3306, user, password)) {
+      Serial.println("Connection success.");
+      delay(1000);
+    }
+    else {
+      Serial.println("Connection failed.");
+    }
+  }
+}
+
+bool VerifyPlantAdded(){
 
   bool plant_added = false;
   row_values *row = NULL;
@@ -303,7 +290,7 @@ bool VerifyPlantAdded(MySQL_Connection conn, char VERIFY_PLANT_ADD){
   return plant_added;
 }
 
-bool VerifyNewPlant(MySQL_Connection conn, char VERIFY_NEW_PLANT_ADD, int plant_added_id){
+bool VerifyNewPlant(){
 
   row_values *row = NULL;
   int new_index;
@@ -333,6 +320,29 @@ bool VerifyNewPlant(MySQL_Connection conn, char VERIFY_NEW_PLANT_ADD, int plant_
   return new_plant;
 }
 
+float GetBegginerTimer(){
+  row_values *row = NULL;
+  float time;
+
+  MySQL_Cursor *cursor = new MySQL_Cursor(&conn);
+  cursor->execute(GET_BEGGINER_TIME);
+
+  // We dont use these columns, but is required do this
+  column_names *columns = cursor->get_columns();
+  do {
+    row = cursor->get_next_row();
+    if (row != NULL) {
+      time = atol(row->values[0]);
+    }
+  } while (row != NULL);
+
+  delete cursor;
+
+  delay(1000);
+
+  return time;
+}
+
 void GetThresholders(int week){
 
   char query[128];
@@ -358,7 +368,7 @@ void GetThresholders(int week){
   delay(1000);
 }
 
-void InsertData(float value_temperature, float value_humidity, float value_light, float value_water, char INSERT_DATA){
+void InsertData(float value_temperature, float value_humidity, float value_light, float value_water){
 
   char query[128];
 
