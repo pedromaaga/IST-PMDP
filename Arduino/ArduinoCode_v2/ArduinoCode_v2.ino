@@ -1,5 +1,5 @@
 // Libraries
-#include <Ethernet.h>
+#include <WiFi.h>
 #include <MySQL_Connection.h>
 #include <MySQL_Cursor.h>
 
@@ -34,15 +34,17 @@ float light_timer;                    	    // [h]
 int qnt_days;
 bool day_change;
 
+// Wi-Fi Connection
+const char* WIFI_SSID = "MEO-E50B10";
+const char* WIFI_PASSWORD = "af8fe101ab";
+
 // MySQL Connection
-byte mac_addr[]                   = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+IPAddress server_addr(192,168,1,93);       // IP of the MySQL *server* here
+IPAddress ip(192,168,1,122);
+char user[]                       = "arduino_user"; // MySQL user login username
+char password[]                   = "arduino_password"; // MySQL user login password
 
-IPAddress server_addr(192,168,1,254);       // IP of the MySQL *server* here
-IPAddress ip(192,168,1,254);
-char user[]                       = "localhost"; // MySQL user login username
-char password[]                   = "2605"; // MySQL user login password
-
-EthernetClient client;
+WiFiClient client;
 MySQL_Connection conn((Client *)&client);
 
 bool plant_added;
@@ -61,9 +63,10 @@ void setup() {
   pinMode(pin_LED, OUTPUT);
   
   Serial.begin(9600);
-  while (!Serial);
-  Ethernet.begin(mac_addr, ip);
-  Serial.println(Ethernet.localIP());
+  while (!Serial); 
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  CheckWiFiConnection();
 }
 
 
@@ -249,16 +252,27 @@ float LightTimeCount(bool day_change, float light_timer, float current_timer, fl
 
 
 // Database functions
-void VerifyConnectionDatabase(){
+void CheckWiFiConnection(){
+  while(WiFi.status() != WL_CONNECTED) {
+    Serial.println("Connecting Wifi...");
+    delay(500);
+  }
 
-  while (!conn.connected()){
-    Serial.println("Connecting...");
-    if (conn.connect(server_addr, 3306, user, password)) {
+  Serial.println("");
+  Serial.print("Connected to WiFi network with IP Address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void VerifyConnectionDatabase(){
+  
+  CheckWiFiConnection();
+  bool connected = false;
+  while (!connected){
+    Serial.println("Connecting database...");
+    if (conn.connect(server_addr, 3306, user, password, "db_arduino")) {
       Serial.println("Connection success.");
       delay(1000);
-    }
-    else {
-      Serial.println("Connection failed.");
+      connected = true;
     }
   }
 }
