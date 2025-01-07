@@ -76,7 +76,7 @@ void setup() {
 
 void loop() {
   CheckWiFiConnection();
-  
+  GetBegginerTimer();
   // Verify there is a plant and the program can run
   plant_added                   = VerifyPlantAdded();
   if (plant_added){
@@ -305,43 +305,52 @@ bool VerifyNewPlant() {
 }
 
 float GetBegginerTimer() {
-  
   Serial.println("============= Receive the begginer time");
 
   HTTPClient http;
   http.begin("http://192.168.1.93/get_begginer_timer.php");
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  postData = "";
-  int httpCode = http.POST(postData);
+
+  int httpCode = http.POST("");
 
   if (httpCode > 0) {
-    payload = http.getString();
+    String payload = http.getString();
+
+    Serial.println("Response Payload: ");
+    Serial.println(payload);
 
     // Parse JSON response
     JSONVar jsonObject = JSON.parse(payload);
+    Serial.println(jsonObject["Connection_Time"]);
 
     // Check if JSON parsing was successful and the value exists
     if (JSON.typeof(jsonObject) == "undefined") {
       Serial.println("Parsing input failed!");
     } else {
       // If data is found, get the Connection_Time value
-      String connectionTime = jsonObject["Connection_Time"];
-      
-      // Handle cases where "Connection_Time" is "No data available"
-      if (connectionTime == "No data available") {
-        Serial.println("No data available for Connection_Time.");
+      if (jsonObject.hasOwnProperty("Connection_Time")) {
+        float connectionTimeStr = jsonObject["Connection_Time"].tofloat();
+
+        Serial.print("Raw Connection_Time string: ");
+        Serial.println(connectionTimeStr);
+
+        float connectionTimeFloat = connectionTimeStr.toFloat();                      // Parse to float
+        Serial.print("Parsed Connection_Time: ");
+        Serial.println(connectionTimeFloat);
+        return connectionTimeFloat; // Return the float value
       } else {
-        // Parse and return the float value of Connection_Time
-        return connectionTime.toFloat();
-        Serial.println("");
+        Serial.println("No Connection_Time available in response.");
       }
     }
+  } else {
+    Serial.print("HTTP request failed with code: ");
+    Serial.println(httpCode);
   }
 
   http.end();
-  Serial.println("");
-  return 0;  // Return 0 if there was no valid HTTP response
+  return 0; // Return 0 if there was no valid HTTP response
 }
+
 
 void GetThresholders(int week) {
 
