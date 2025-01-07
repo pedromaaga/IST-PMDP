@@ -1,7 +1,7 @@
 // Libraries
 #include <WiFi.h>
-#include <MySQL_Connection.h>
-#include <MySQL_Cursor.h>
+#include <HTTPClient.h>
+#include <Arduino_JSON.h>
 
 // Ports
 const int pin_sensor_humidity 		  = A0;
@@ -10,6 +10,10 @@ const int pin_sensor_water    		  = A2;
 const int pin_sensor_light    		  = A3;
 const int pin_pump            		  = D9;
 const int pin_LED             		  = D8;
+
+// Variables for HTTP POST request data.
+String postData = ""; //--> Variables sent for HTTP POST request data.
+String payload = "";  //--> Variable for receiving response from HTTP POST.
 
 // Sensor variables
 float value_humidity;
@@ -45,7 +49,6 @@ char user[]                       = "arduino_user"; // MySQL user login username
 char password[]                   = "arduino_password"; // MySQL user login password
 
 WiFiClient client;
-MySQL_Connection conn((Client *)&client);
 
 bool plant_added;
 bool new_plant;
@@ -65,14 +68,14 @@ void setup() {
   Serial.begin(9600);
   while (!Serial); 
 
+  WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   CheckWiFiConnection();
 }
 
 
 void loop() {
-  // Connection Database
-  VerifyConnectionDatabase();
+  CheckWiFiConnection();
   
   // Verify there is a plant and the program can run
   plant_added                   = VerifyPlantAdded();
@@ -89,6 +92,7 @@ void loop() {
     }
   }
 
+  plant_added = true;
   if (plant_added){
     // Verify if it is a new week
     if (qnt_days % 7 == 0) {
@@ -116,17 +120,17 @@ void loop() {
     previous_timer              = current_timer;
     
     // Mensages
-    Serial.println("-- Current timer --");
-    Serial.println(current_timer);
-    Serial.println("-- New values --");
-    Serial.print("Humidity Value:\t\t");
-    Serial.println(value_humidity);
-    Serial.print("Light Value:\t\t");
-    Serial.println(value_light);
-    Serial.print("Water level Value:\t");
-    Serial.println(value_water);
-    Serial.print("Temperature Value:\t");
-    Serial.println(value_temperature);
+    //Serial.println("-- Current timer --");
+    //Serial.println(current_timer);
+    //Serial.println("-- New values --");
+    //Serial.print("Humidity Value:\t\t");
+    //Serial.println(value_humidity);
+    //Serial.print("Light Value:\t\t");
+    //Serial.println(value_light);
+   // Serial.print("Water level Value:\t");
+   // Serial.println(value_water);
+   // Serial.print("Temperature Value:\t");
+   // Serial.println(value_temperature);
     
     // Actuators
     active_pump                 = ActPump(value_humidity, threshold_humidity);
@@ -148,9 +152,8 @@ void loop() {
     
     // Insert the sensors data in the database
     InsertData(value_temperature, value_humidity, value_light, value_water);
-
-    delay(6000);
   }
+  delay(10000);
 }
 
 
@@ -253,146 +256,164 @@ float LightTimeCount(bool day_change, float light_timer, float current_timer, fl
 
 // Database functions
 void CheckWiFiConnection(){
+
+  Serial.println("============= Wifi Connection");
+
   while(WiFi.status() != WL_CONNECTED) {
     Serial.println("Connecting Wifi...");
     delay(500);
   }
 
-  Serial.println("");
   Serial.print("Connected to WiFi network with IP Address: ");
   Serial.println(WiFi.localIP());
+  Serial.println("====================================");
+  Serial.println("");
 }
 
-void VerifyConnectionDatabase(){
+bool VerifyPlantAdded() {
+  HTTPClient http;
+  int httpCode;
+
+  http.begin("http://localhost/verify_plant_added.php"); // Replace <server-ip>
   
-  CheckWiFiConnection();
-  bool connected = false;
-  while (!connected){
-    Serial.println("Connecting database...");
-    if (conn.connect(server_addr, 3306, user, password, "db_arduino")) {
-      Serial.println("Connection success.");
-      delay(1000);
-      connected = true;
+  int httpResponseCode = http.GET();
+  if (httpResponseCode > 0) {
+    String response = http.getString();
+    return response.indexOf("\"plant_added\":true") >= 0;
+  }
+
+  http.end();
+  return false;
+}
+
+bool VerifyNewPlant() {
+  HTTPClient http;
+  http.begin("http://localhost/verify_new_plant.php");
+
+  int httpResponseCode = http.GET();
+  if (httpResponseCode > 0) {
+    String response = http.getString();
+    int newIndex = response.substring(response.indexOf(":") + 1, response.indexOf("}")).toInt();
+    if (newIndex != plant_added_id) {
+      plant_added_id = newIndex;
+      return true;
     }
   }
+
+  http.end();
+  return false;
 }
 
-bool VerifyPlantAdded(){
+float GetBegginerTimer() {
+  
+  Serial.println("============= Receive the begginer time");
 
-  bool plant_added = false;
-  row_values *row = NULL;
-  int end_time;
+  HTTPClient http;
+  http.begin("http://192.168.1.93/get_begginer_timer.php");
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  postData = "";
+  int httpCode = http.POST(postData);
 
-  MySQL_Cursor *cursor = new MySQL_Cursor(&conn);
-  cursor->execute(VERIFY_PLANT_ADD);
+  if (httpCode > 0) {
+    payload = http.getString();
 
-  // We dont use these columns, but is required do this
-  column_names *columns = cursor->get_columns();
-  do {
-    row = cursor->get_next_row();
-    if (row != NULL) {
-      end_time = atol(row->values[0]);
+    // Parse JSON response
+    JSONVar jsonObject = JSON.parse(payload);
+
+    // Check if JSON parsing was successful and the value exists
+    if (JSON.typeof(jsonObject) == "undefined") {
+      Serial.println("Parsing input failed!");
+    } else {
+      // If data is found, get the Connection_Time value
+      String connectionTime = jsonObject["Connection_Time"];
+      
+      // Handle cases where "Connection_Time" is "No data available"
+      if (connectionTime == "No data available") {
+        Serial.println("No data available for Connection_Time.");
+      } else {
+        // Parse and return the float value of Connection_Time
+        return connectionTime.toFloat();
+        Serial.println("");
+      }
     }
-  } while (row != NULL);
+  }
 
-  if (end_time == -1){
-    plant_added   = true;
-  };
-
-  delete cursor;
-
-  delay(1000);
-
-  return plant_added;
+  http.end();
+  Serial.println("");
+  return 0;  // Return 0 if there was no valid HTTP response
 }
 
-bool VerifyNewPlant(){
+void GetThresholders(int week) {
 
-  row_values *row = NULL;
-  int new_index;
-  bool new_plant   = false;
+  Serial.println("============= Receive the threshoulders");
+  Serial.print("=============   Week ");
+  Serial.println(week);
 
-  MySQL_Cursor *cursor = new MySQL_Cursor(&conn);
-  cursor->execute(VERIFY_NEW_PLANT_ADD);
+  HTTPClient http;
+  String postData = "week=" + String(week);
 
-  // We dont use these columns, but is required do this
-  column_names *columns = cursor->get_columns();
-  do {
-    row = cursor->get_next_row();
-    if (row != NULL) {
-      new_index = atol(row->values[0]);
-    }
-  } while (row != NULL);
+  http.begin("http://192.168.1.93/get_thresholders.php");
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  int httpCode = http.POST(postData);
 
-  if (new_index != plant_added_id){
-    plant_added_id   = new_index;
-    new_plant = true;
-  };
+  if (httpCode > 0) {
+      payload = http.getString();
 
-  delete cursor;
+      JSONVar jsonObject = JSON.parse(payload);
 
-  delay(1000);
+      if (JSON.typeof(jsonObject) == "undefined") {
+          Serial.println("Parsing failed!");
+      } else if (jsonObject.hasOwnProperty("error")) {
+          // Handle the error response
+          Serial.println((const char*)jsonObject["error"]);
+          threshold_humidity = -1; // Indicate no valid data
+          threshold_light = -1;
+          threshold_light_timer = -1;
+      } else {
+          // Extract threshold values
+          threshold_humidity = String((const char*)jsonObject["Soil_Humidity_Min"]).toFloat();
+          threshold_light = String((const char*)jsonObject["Light_Intensity_Min"]).toFloat();
+          threshold_light_timer = String((const char*)jsonObject["Light_Exposure_Min"]).toFloat();
 
-  return new_plant;
+          Serial.print("Soil Humidity Min: ");
+          Serial.println(threshold_humidity);
+          Serial.print("Light Intensity Min: ");
+          Serial.println(threshold_light);
+          Serial.print("Light Exposure Min: ");
+          Serial.println(threshold_light_timer);
+      }
+  } else {
+      Serial.print("HTTP request failed, error code: ");
+  }
+
+  http.end(); // Close the connection
+  Serial.println("====================================");
+  Serial.println("");
 }
 
-float GetBegginerTimer(){
-  row_values *row = NULL;
-  float time;
 
-  MySQL_Cursor *cursor = new MySQL_Cursor(&conn);
-  cursor->execute(GET_BEGGINER_TIME);
+void InsertData(float value_temperature, float value_humidity, float value_light, float value_water) {
+  Serial.println("============= Insert sensors data in the database");
 
-  // We dont use these columns, but is required do this
-  column_names *columns = cursor->get_columns();
-  do {
-    row = cursor->get_next_row();
-    if (row != NULL) {
-      time = atol(row->values[0]);
-    }
-  } while (row != NULL);
+  HTTPClient http;
+  int httpCode;
 
-  delete cursor;
+  // URL with formatted query parameters
+  String postData = "temperature=" + String(value_temperature, 2); // Format to 2 decimal places
+  postData += "&humidity=" + String(value_humidity, 2);
+  postData += "&light=" + String(value_light, 2);
+  postData += "&water=" + String(value_water, 2);
 
-  delay(1000);
+  http.begin("http://192.168.1.93/insert_data.php");
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
-  return time;
+  httpCode = http.POST(postData); //--> Send the request
+  payload = http.getString();     //--> Get the response payload
+
+  Serial.println(payload);  //--> Print request response payload
+  
+  http.end(); // Close connection
+  Serial.println("====================================");
+  Serial.println("");
 }
 
-void GetThresholders(int week){
-
-  char query[128];
-  row_values *row = NULL;
-
-  sprintf(query, GET_THRESHOLDERS, week);
-  MySQL_Cursor *cursor = new MySQL_Cursor(&conn);
-  cursor->execute(query);
-
-  // We dont use these columns, but is required do this
-  column_names *columns = cursor->get_columns();
-  do {
-    row = cursor->get_next_row();
-    if (row != NULL) {
-      threshold_humidity = atol(row->values[0]);
-      threshold_light = atol(row->values[1]);
-      threshold_light_timer = atol(row->values[0]);
-    }
-  } while (row != NULL);
-
-  delete cursor;
-
-  delay(1000);
-}
-
-void InsertData(float value_temperature, float value_humidity, float value_light, float value_water){
-
-  char query[128];
-
-  sprintf(query, INSERT_DATA, value_temperature, value_humidity, value_light, value_water);
-  MySQL_Cursor *cursor = new MySQL_Cursor(&conn);
-  cursor->execute(query);
-
-  delete cursor;
-
-  delay(1000);
-}
