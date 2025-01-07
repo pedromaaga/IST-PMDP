@@ -68,6 +68,10 @@ void setup() {
   Serial.begin(9600);
   while (!Serial); 
 
+  Serial.println("____________________________________");
+  Serial.println("----------SmartPot Project----------");
+  Serial.println("____________________________________");
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   CheckWiFiConnection();
