@@ -16,7 +16,7 @@ CREATE TABLE tb_config (
     Initial_Time	INT,
     End_Time		INT DEFAULT -1,
     ID_Plant		INT,
-    Connection_Time	DATETIME
+    Connection_Time	DECIMAL(4,2)
 );	
 
 CREATE VIEW v_thresholders AS
