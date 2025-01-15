@@ -14,18 +14,19 @@ if (!empty($_POST)) {
     // Consulta SQL
     $sql = "SELECT Soil_Humidity_Min, Light_Intensity_Min, Light_Exposure_Min 
             FROM v_thresholders 
-            WHERE ? BETWEEN Start_Week AND End_Week";
+            WHERE Start_Week <= ? AND
+                  End_Week >= ?";
     $q = $pdo->prepare($sql);
 
     // Executa a consulta e verifica sucesso
-    if ($q->execute(array($week))) {
+    if ($q->execute(array($week, $week))) {
         $result = $q->fetch(PDO::FETCH_ASSOC); // Busca uma linha como array associativo
 
         if ($result) {
             // Popula o objeto de resposta
-            $myObj->Soil_Humidity_Min = $result['Soil_Humidity_Min'];
-            $myObj->Light_Intensity_Min = $result['Light_Intensity_Min'];
-            $myObj->Light_Exposure_Min = $result['Light_Exposure_Min'];
+            $myObj->Soil_Humidity_Min = (float)$result['Soil_Humidity_Min'];
+            $myObj->Light_Intensity_Min = (float)$result['Light_Intensity_Min'];
+            $myObj->Light_Exposure_Min = (float)$result['Light_Exposure_Min'];
 
             // Retorna a resposta como JSON
             echo json_encode($myObj);

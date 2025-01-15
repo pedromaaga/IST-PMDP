@@ -10,7 +10,7 @@ if (!empty($_POST)) {
     $water = filter_var($_POST['water'], FILTER_VALIDATE_FLOAT);
 
     if ($temperature !== false && $humidity !== false && $light !== false && $water !== false) {
-        // Format values to match DECIMAL(5,2)
+        // Format values to match DECIMAL(9,2)
         $temperature = number_format($temperature, 2, '.', '');
         $humidity = number_format($humidity, 2, '.', '');
         $light = number_format($light, 2, '.', '');

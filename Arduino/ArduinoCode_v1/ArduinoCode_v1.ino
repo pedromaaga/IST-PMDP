@@ -17,9 +17,9 @@ bool active_pump 					= 0;
 bool active_light 					= 0;
 
 // Thresholders;
-float threshold_humidity			= 25;
+float threshold_humidity			= 50;
 float threshold_light 				= 3000;
-float threshold_light_timer			= 0;	// [h]
+float threshold_light_timer			= 5;	// [h]
 
 // Time variables
 float begginer_timer;						// [h]
@@ -35,7 +35,8 @@ void setup() {
   pinMode(pin_LED, OUTPUT);
   
   Serial.begin(9600);
-  
+  while(!Serial);
+  Serial.println("Start");
   // Eu preciso pegar o tempo inicial pelo usuario
   // Eu preciso conectar no database para pegar os threshold
   begginer_timer = 18;
@@ -117,7 +118,7 @@ float GetWaterLevel() {
   int raw_water;
   raw_water = analogRead(pin_sensor_water);
   float water_percent = ((raw_water - 20.0) / (358.0 - 20.0)) * 100.0;
-  return water_percent;
+  return water_percent;       // 1200
 }
 
 float GetTemperature() {

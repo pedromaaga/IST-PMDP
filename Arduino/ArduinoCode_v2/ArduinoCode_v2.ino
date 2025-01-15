@@ -36,14 +36,14 @@ float current_timer;                  	    // [h]
 float previous_timer;						            // [h]
 float light_timer;                    	    // [h]
 int qnt_days;
-bool day_change;
+bool day_change       = true;
 
 // Wi-Fi Connection
-const char* WIFI_SSID = "MEO-E50B10";
-const char* WIFI_PASSWORD = "af8fe101ab";
+const char* WIFI_SSID = "AndroidAPF65B";
+const char* WIFI_PASSWORD = "sfbw0473";
 
 // MySQL Connection
-IPAddress server_addr(192,168,1,93);       // IP of the MySQL *server* here
+IPAddress server_addr(192,168,38,34);       // IP of the MySQL *server* here
 IPAddress ip(192,168,1,122);
 char user[]                       = "arduino_user"; // MySQL user login username
 char password[]                   = "arduino_password"; // MySQL user login password
@@ -93,12 +93,13 @@ void loop() {
       light_timer               = 0;
       qnt_days                  = 0;
       begginer_timer            = GetBegginerTimer();
+      previous_timer            = begginer_timer;
     }
   }
 
   if (plant_added){
     // Verify if it is a new week
-    if (qnt_days % 7 == 0) {
+    if (qnt_days % 7 == 0 && day_change) {
       int week                  = qnt_days % 7 + 1;
       GetThresholders(week);
     }
@@ -122,19 +123,6 @@ void loop() {
     // Update previous timer
     previous_timer              = current_timer;
     
-    // Mensages
-    //Serial.println("-- Current timer --");
-    //Serial.println(current_timer);
-    //Serial.println("-- New values --");
-    //Serial.print("Humidity Value:\t\t");
-    //Serial.println(value_humidity);
-    //Serial.print("Light Value:\t\t");
-    //Serial.println(value_light);
-   // Serial.print("Water level Value:\t");
-   // Serial.println(value_water);
-   // Serial.print("Temperature Value:\t");
-   // Serial.println(value_temperature);
-    
     // Actuators
     active_pump                 = ActPump(value_humidity, threshold_humidity);
     if (active_pump)
@@ -156,7 +144,7 @@ void loop() {
     // Insert the sensors data in the database
     InsertData(value_temperature, value_humidity, value_light, value_water);
   }
-  delay(10000);
+  delay(6000);
 }
 
 
@@ -167,7 +155,7 @@ float GetHumidity() {
   int raw_humidity;
 
   raw_humidity                    = analogRead(pin_sensor_humidity);
-  float humidity_percent          = raw_humidity;
+  float humidity_percent          = (raw_humidity - 0.0)/(4096.0 - 0.0) * 100.00 + 50;
 
   return humidity_percent;
 }
@@ -176,7 +164,7 @@ float GetLight() {
   int raw_light;
 
   raw_light                       = analogRead(pin_sensor_light);
-  float light_percent             = raw_light;
+  float light_percent             = (raw_light + 4000.00);
 
   return light_percent;
 }
@@ -185,7 +173,7 @@ float GetWaterLevel() {
   int raw_water;
 
   raw_water                       = analogRead(pin_sensor_water);
-  float water_percent             = raw_water;
+  float water_percent             = (raw_water - 0.0)/(4096.0 - 0.0) * 100.00;
 
   return water_percent;
 }
@@ -194,7 +182,7 @@ float GetTemperature() {
   int raw_temperature;
 
   raw_temperature                 = analogRead(pin_sensor_temperature);
-  float temperature               = raw_temperature;
+  float temperature               = (raw_temperature - 0.0)/(4096.0 - 0.0) * 100.00;
 
   return temperature;
 }
@@ -215,7 +203,7 @@ bool ActPump(float humidity, float threshold){
 bool ActLight(float light, float threshold, float light_timer, float threshold_timer){
   
   bool active                     = false;
-  
+
   if ((light < threshold) && (light_timer < threshold_timer)){
   	active                        = true;
   }
@@ -244,13 +232,13 @@ bool VerifyDayChange(float previous_timer, float current_timer){
 }
 
 float LightTimeCount(bool day_change, float light_timer, float current_timer, float previous_timer, float value_light, float threshold_light) {
-    if (day_change) {
-        light_timer               = 0;
-    }
-
     if (value_light > threshold_light) {
         float time_difference = current_timer - previous_timer;
         light_timer += time_difference;
+    }
+
+    if (day_change) {
+        light_timer               = 0;
     }
 
     return light_timer;
@@ -264,7 +252,7 @@ void CheckWiFiConnection(){
 
   while(WiFi.status() != WL_CONNECTED) {
     Serial.println("Connecting Wifi...");
-    delay(500);
+    delay(2000);
   }
 
   Serial.print("Connected to WiFi network with IP Address: ");
@@ -279,7 +267,7 @@ bool VerifyPlantAdded() {
   bool plant_added = false;
 
   HTTPClient http;
-  http.begin("http://192.168.1.93/verify_plant_added.php");
+  http.begin("http://192.168.38.34/verify_plant_added.php");
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
   int httpCode = http.POST("Time");
@@ -327,7 +315,7 @@ bool VerifyNewPlant() {
   bool new_plant = false;
 
   HTTPClient http;
-  http.begin("http://192.168.1.93/verify_new_plant.php");
+  http.begin("http://192.168.38.34/verify_new_plant.php");
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
   int httpCode = http.POST("ID");
@@ -376,7 +364,7 @@ float GetBegginerTimer() {
   float connection_time;
 
   HTTPClient http;
-  http.begin("http://192.168.1.93/get_begginer_timer.php");
+  http.begin("http://192.168.38.34/get_begginer_timer.php");
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
   int httpCode = http.POST("Time");
@@ -426,7 +414,7 @@ void GetThresholders(int week) {
   HTTPClient http;
   String postData = "week=" + String(week);
 
-  http.begin("http://192.168.1.93/get_thresholders.php");
+  http.begin("http://192.168.38.34/get_thresholders.php");
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   int httpCode = http.POST(postData);
 
@@ -434,6 +422,7 @@ void GetThresholders(int week) {
       payload = http.getString();
 
       JSONVar jsonObject = JSON.parse(payload);
+      Serial.println(jsonObject["Soil_Humidity_Min"]);
 
       if (JSON.typeof(jsonObject) == "undefined") {
           Serial.println("Parsing failed!");
@@ -478,7 +467,7 @@ void InsertData(float value_temperature, float value_humidity, float value_light
   postData += "&light=" + String(value_light, 2);
   postData += "&water=" + String(value_water, 2);
 
-  http.begin("http://192.168.1.93/insert_data.php");
+  http.begin("http://192.168.38.34/insert_data.php");
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
   httpCode = http.POST(postData); //--> Send the request
